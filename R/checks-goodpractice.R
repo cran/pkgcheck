@@ -1,0 +1,573 @@
+#' Get 'goodpractice' report on local source package
+#'
+#' This uses a caching system to only generate new report if repository has been
+#' updated, otherwise it returns locally cached version. It has a prefix of
+#' `pkgcheck_` and not `pkgchk_` because it is structured differently to
+#' standard `pkgchk_` checks, and this avoids any method confusion.
+#'
+#' @inheritParams pkgcheck
+#' @return A \pkg{goodpractice} report
+#' @noRd
+pkgcheck_gp_report <- function (path,
+                                gp_full = TRUE,
+                                use_cache,
+                                renv_activated) {
+
+    cache_pkgcheck_component (
+        path,
+        use_cache,
+        renv_activated,
+        gp_full,
+        "goodpractice"
+    )
+}
+
+#' return tick or cross
+#' @noRd
+summarise_gp_checks <- function (checks) {
+
+    if (!"rcmdcheck" %in% names (checks$goodpractice)) {
+        return (NULL)
+    }
+
+    if (methods::is (checks$goodpractice$rcmdcheck, "try-error")) {
+
+        cond <- attr (
+            checks$goodpractice$rcmdcheck,
+            "condition"
+        ) # the error condition
+        rcmd_errs <- paste0 (
+            "- ",
+            symbol_crs (),
+            " R CMD check process failed with message: '",
+            cond$message,
+            "'."
+        )
+        rcmd_warns <- NULL
+
+    } else {
+
+        nerr <- length (checks$goodpractice$rcmdcheck$errors)
+        if (nerr == 0) {
+            rcmd_errs <- paste0 (
+                "- ",
+                symbol_tck (),
+                " R CMD check found no errors."
+            )
+        } else {
+            rcmd_errs <- paste0 (
+                "- ",
+                symbol_crs (),
+                " R CMD check found ",
+                nerr,
+                ifelse (nerr == 1,
+                    " error.",
+                    " errors."
+                )
+            )
+        }
+
+        nwarn <- length (checks$goodpractice$rcmdcheck$warnings)
+        if (nwarn == 0) {
+            rcmd_warns <- paste0 (
+                "- ",
+                symbol_tck (),
+                " R CMD check found no warnings."
+            )
+        } else {
+            rcmd_warns <- paste0 (
+                "- ",
+                symbol_crs (),
+                " R CMD check found ",
+                nwarn,
+                ifelse (nwarn == 1,
+                    " warning.",
+                    " warnings."
+                )
+            )
+        }
+    }
+
+    return (list (
+        rcmd_errs = rcmd_errs,
+        rcmd_warns = rcmd_warns
+    ))
+}
+
+# No internal print method; pkgcheck uses default method from goodpractice
+
+#' Convert goodpractice checks to markdown format
+#'
+#' @param checks Result of main \link{pkgcheck} function
+#' @param control A named list of parameters potentially including
+#' `cyclocomp_threshold`, `covr_threshold`, and `covr_digits`, where
+#' reports are generated for cyclocomplexity values above threshold, and
+#' coverage values below threshold (given as percentage). `digits` controls the
+#' number of digits printed in coverage reports.
+#' @noRd
+gp_checks_to_md <- function (checks,
+                             control = list (
+                                 cyclocomp_threshold = 15,
+                                 covr_threshold = 70,
+                                 digits = 2
+                             )) {
+
+    gp <- extract_gp_components (checks$goodpractice)
+
+
+    sec_num <- 3L + "srr" %in% names (checks$info)
+    c (
+        "",
+        paste0 ("#### ", sec_num, "b. `goodpractice` results"),
+        "",
+        "",
+        convert_gp_components (gp, control = control),
+        ""
+    )
+}
+
+# ------------------------------------------
+# ---------- Additional functions ----------
+# ------------------------------------------
+
+
+extract_gp_components <- function (gp) {
+
+    # -------------- covr:
+    # from covr::print.coverage
+    # https://github.com/r-lib/covr/blob/master/R/summary_functions.R
+    covr <- list ()
+    if (is.list (gp$covr)) {
+        covr <- gp$covr$coverage
+        group <- "filename"
+        by <- "line"
+        df <- covr::tally_coverage (covr, by = by)
+        percents <- tapply (df$value,
+            df [[group]],
+            FUN = function (x) (sum (x > 0) / length (x)) * 100
+        )
+        overall_percentage <- covr::percent_coverage (df, by = by)
+        covr <- c (
+            package = overall_percentage,
+            percents
+        )
+        covr <- data.frame (
+            source = names (covr),
+            percent = as.numeric (covr),
+            stringsAsFactors = FALSE
+        )
+    }
+
+    # -------------- cyclocomp:
+    cyc <- gp$cyclocomp
+
+    # -------------- lintr:
+    lints <- list ()
+    if (!methods::is (gp$lintr, "try-error")) {
+        lint_file <- vapply (gp$lintr, function (i) i$filename, character (1))
+        lint_line <- vapply (gp$lintr, function (i) i$line_number, integer (1))
+        lint_type <- vapply (gp$lintr, function (i) i$type, character (1))
+        lint_message <- vapply (gp$lintr, function (i) i$message, character (1))
+        linter <- vapply (gp$lintr, function (i) i$linter, character (1))
+        lints <- data.frame (
+            file = lint_file,
+            line = lint_line,
+            type = lint_type,
+            message = lint_message,
+            linter = linter,
+            stringsAsFactors = FALSE
+        )
+        # lintr reports library calls in tests dir, which are okay
+        lint_files <- fs::path_split (lints$file)
+        files_in_this <- function (files, this) {
+            vapply (files, function (f) this %in% f, logical (1L))
+        }
+        files_in_tests <- files_in_this (lint_files, "tests")
+        files_in_vignettes <- files_in_this (lint_files, "vignettes")
+        index <- which (lints$linter == "library_require_linter" &
+            (files_in_tests | files_in_vignettes))
+        if (length (index) > 0) {
+            lints <- lints [-(index), ]
+        }
+        if (nrow (lints) == 0) {
+            lints <- list ()
+        }
+    }
+
+    # -------------- rcmdcheck:
+    r <- gp$rcmdcheck
+    rcmd <- list ()
+    if (methods::is (r, "try-error")) {
+        rcmd$errors <- paste0 (r)
+    } else if (length (r) > 0) {
+        if (length (r$errors) > 0) {
+            rcmd$errors <- r$errors
+        }
+        if (length (r$warnings) > 0) {
+            rcmd$warnings <- r$warnings
+        }
+        if (length (r$notes) > 0) {
+            rcmd$notes <- r$notes
+        }
+        if (length (r$test_fail) > 0) {
+            rcmd$test_fails <- r$test_fail
+        } # note plural!
+    }
+
+    # -------------- any other components which fail:
+    rm <- c (
+        "path", "package", "extra_preps", "extra_checks", "exclude_path",
+        "covr", "cyclocomp", "lintr", "rcmdcheck", "checks"
+    )
+    index <- which (!names (gp) %in% rm)
+    other_check_groups <- names (gp [index])
+    other_check_names <- unlist (lapply (
+        other_check_groups,
+        function (g) goodpractice::checks_by_group (g)
+    ))
+
+    check_pass <- vapply (gp$checks, function (i) i$status, logical (1L))
+    check_fails <- gp$checks [which (!check_pass)]
+    index <- which (names (check_fails) %in% other_check_names)
+    check_fails <- check_fails [index]
+    # But rm any fails on "RcppExports":
+    flist <- vapply (check_fails, function (i) {
+        if (length (i$positions) == 0L) {
+            return (NA_character_)
+        }
+        i$positions [[1]]$filename
+    }, character (1L))
+    check_fails <- check_fails [which (!grepl ("RcppExports", flist))]
+
+    # return result
+    res <- list (
+        package = unname (gp$package),
+        rcmd = rcmd,
+        covr = covr,
+        cyclocomp = cyc,
+        lintr = lints,
+        other = check_fails
+    )
+    res [which (lengths (res) > 0)]
+}
+
+#' Convert \pkg{goodpractice} components into templated report
+#'
+#' @param x List of components of \pkg{goodpractice} report
+#' @param control A named list of parameters potentially including
+#' `cyclocomp_threshold`, `covr_threshold`, and `covr_digits`, where
+#' reports are generated for cyclocomplexity values above threshold, and
+#' coverage values below threshold (given as percentage). `digits` controls the
+#' number of digits printed in coverage reports.
+#' @return Markdown-formatted report of contents of `x`
+#' @noRd
+convert_gp_components <- function (x,
+                                   control = list (
+                                       cyclocomp_threshold = 15,
+                                       covr_threshold = 70,
+                                       digits = 2
+                                   )) {
+
+    rcmd <- covr <- cycl <- lintr <- other <- NULL
+
+    if (any (grepl ("^rcmd", names (x)))) {
+        rcmd <- rcmd_report (x)
+    }
+    if (any (grepl ("^covr", names (x)))) {
+        covr <- covr_report (x, control)
+    }
+    if (any (grepl ("^cycl", names (x)))) {
+        cycl <- cyclo_report (x, control)
+    }
+    if (any (grepl ("^lint", names (x)))) {
+        lintr <- lintr_report (x)
+    }
+    if ("other" %in% names (x)) {
+        other <- other_report (x)
+    }
+
+    return (c (rcmd, covr, cycl, lintr, other))
+}
+
+
+rcmd_report <- function (x) {
+
+    ret <- c (
+        paste0 (
+            "#### `R CMD check` with [rcmdcheck]",
+            "(https://r-lib.github.io/rcmdcheck/)"
+        ),
+        ""
+    )
+
+    if (!"rcmd" %in% names (x)) {
+        return (c (
+            ret,
+            "rcmdcheck found no errors, warnings, or notes",
+            ""
+        ))
+    }
+
+    rcmd <- x$rcmd
+    if (methods::is (rcmd, "try-error")) {
+        return (rcmd)
+    }
+
+    ret <- c (ret, dump_one_rcmd_type (rcmd, "errors"))
+    ret <- c (ret, dump_one_rcmd_type (rcmd, "warnings"))
+    ret <- c (ret, dump_one_rcmd_type (rcmd, "notes"))
+    ret <- c (ret, dump_one_rcmd_type (rcmd, "test_fails"))
+    ret <- c (ret, dump_one_rcmd_type (rcmd, "check_fails"))
+
+    return (c (ret, ""))
+}
+
+dump_one_rcmd_type <- function (rcmd, type = "errors") {
+
+    ret <- NULL
+
+    if (!type %in% names (rcmd)) {
+        return (ret)
+    }
+
+    msg <- paste0 (
+        "R CMD check generated the following ",
+        gsub ("s$", "", type)
+    )
+    if (length (rcmd [[type]]) > 1) {
+        msg <- paste0 (msg, "s")
+    }
+    msg <- paste0 (msg, ":")
+
+    ret <- c (
+        ret,
+        msg,
+        ""
+    )
+
+    for (i in seq.int (rcmd [[type]])) {
+        ret <- c (
+            ret,
+            paste0 (i, ". ", rcmd [[type]] [i])
+        )
+    }
+
+    ret <- c (ret, "")
+
+    return (ret)
+}
+
+covr_report <- function (x,
+                         control = list (
+                             cyclocomp_threshold = 15,
+                             covr_threshold = 70,
+                             digits = 2
+                         )) {
+
+    res <- c (
+        "#### Test coverage with [covr](https://covr.r-lib.org/)",
+        ""
+    )
+
+    if (!"covr" %in% names (x)) {
+        return (c (
+            res,
+            "ERROR: Test Coverage Failed",
+            ""
+        ))
+    }
+    if (methods::is (x$covr, "try-error")) {
+        return (c (
+            res,
+            paste0 (x$covr),
+            ""
+        ))
+    }
+
+    if ("covr_threshold" %in% names (control)) {
+        covr_threshold <- control$covr_threshold
+    } else {
+        covr_threshold <- 70
+    }
+
+    if ("digits" %in% names (control)) {
+        digits <- control$digits
+    } else {
+        digits <- 2
+    }
+
+    pkg_line <- which (x$covr$source == "package")
+    pkg_cov <- x$covr$percent [pkg_line]
+
+    covr <- x$covr [-pkg_line, ]
+
+    covr <- covr [covr$percent < covr_threshold, ]
+
+    res <- c (
+        res,
+        paste0 ("Package coverage: ", round (pkg_cov, digits = digits))
+    )
+
+    if (pkg_cov >= covr_threshold) {
+        return (c (res, ""))
+    }
+
+    if (nrow (covr) > 0) {
+        res <- c (
+            res,
+            "",
+            "The following files are not completely covered by tests:",
+            "",
+            "file | coverage",
+            "--- | ---"
+        )
+        for (i in seq.int (nrow (covr))) {
+            res <- c (
+                res,
+                paste0 (
+                    covr$source [i],
+                    " | ",
+                    round (covr$percent [i], digits = digits),
+                    "%"
+                )
+            )
+        }
+    }
+    res <- c (res, "")
+
+    return (res)
+}
+
+cyclo_report <- function (x,
+                          control = list (
+                              cyclocomp_threshold = 15,
+                              covr_threshold = 70,
+                              digits = 2
+                          )) {
+
+    if ("cyclocomp_threshold" %in% names (control)) {
+        cyc_thr <- control$cyclocomp_threshold
+    } else {
+        cyc_thr <- 15
+    }
+
+    cyc <- x$cyclocomp
+
+    ret <- c (
+        paste0 (
+            "#### Cyclocomplexity with [cyclocomp]",
+            "(https://github.com/MangoTheCat/cyclocomp)"
+        ),
+        ""
+    )
+
+    if (methods::is (cyc, "try-error")) {
+        ret <- c (ret, paste0 (cyc))
+    } else if (inherits (cyc, c ("matrix", "data.frame"))) {
+        cyc <- cyc [cyc$cyclocomp >= cyc_thr, , drop = FALSE]
+
+        if (nrow (cyc) == 0) {
+            ret <- c (
+                ret,
+                paste0 ("No functions have cyclocomplexity >= ", cyc_thr)
+            )
+        } else {
+            msg <- "The following function"
+            if (nrow (cyc) > 1) {
+                msg <- paste0 (msg, "s")
+            }
+            msg <- paste0 (msg, " have cyclocomplexity >= ", cyc_thr, ":")
+            ret <- c (
+                ret,
+                msg,
+                "",
+                "function | cyclocomplexity",
+                "--- | ---"
+            )
+
+            for (i in seq.int (nrow (cyc))) {
+                ret <- c (
+                    ret,
+                    paste0 (cyc$name [i], " | ", cyc$cyclocomp [i])
+                )
+            }
+        }
+    }
+
+    ret <- c (ret, "")
+
+    return (ret)
+}
+
+lintr_report <- function (x) {
+
+    ret <- c (
+        paste0 (
+            "#### Static code analyses with [lintr]",
+            "(https://github.com/jimhester/lintr)"
+        ),
+        ""
+    )
+    nolint_msg <- paste0 (
+        "[lintr](https://github.com/jimhester/lintr) ",
+        "found no issues with this package!"
+    )
+
+    if (is.null (x$lintr)) {
+        return (c (ret, nolint_msg, ""))
+    }
+
+    lintr <- as.data.frame (x$lintr)
+    # Reduce to 1st sentence of message only:
+    lintr$message <- gsub ("\\.\\s.*$", ".", lintr$message)
+    msgs <- table (lintr$message)
+    msgs <- data.frame (
+        message = names (msgs),
+        n = as.integer (msgs),
+        stringsAsFactors = FALSE
+    )
+
+    if (nrow (msgs) == 0L) {
+        return (c (ret, nolint_msg, ""))
+    }
+
+    ret <- c (
+        ret,
+        paste0 (
+            "[lintr](https://github.com/jimhester/lintr) ",
+            "found the following ",
+            sum (msgs$n),
+            " potential issues:"
+        ),
+        "",
+        "message | number of times",
+        "--- | ---"
+    )
+    for (i in seq.int (nrow (msgs))) {
+        ret <- c (
+            ret,
+            paste0 (msgs$message [i], " | ", msgs$n [i])
+        )
+    }
+
+    return (c (ret, ""))
+}
+
+other_report <- function (x) {
+
+    failed_checks <- names (x$other)
+    failed_descs <- goodpractice::describe_check (failed_checks)
+    failed_descs <- gsub ("(@[[:alpha:]]+)", "`\\1`", failed_descs)
+    if (length (failed_checks) == 0L) {
+        return (NULL)
+    }
+    c (
+        "",
+        "#### Other goodpractice checks",
+        "",
+        unname (vapply (failed_descs, function (ch) {
+            paste0 (symbol_crs (), " ", ch)
+        }, character (1L))),
+        ""
+    )
+}

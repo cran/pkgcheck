@@ -1,0 +1,57 @@
+Package: pkgcheck
+Title: Package Checks for 'rOpenSci'
+Version: 0.3.0
+Authors@R: c(
+    person("Mark", "Padgham", , "mark.padgham@email.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0003-2172-5265")),
+    person("Maëlle", "Salmon", role = "aut"),
+    person("Jacob", "Wujciak-Jens", , "jacob@wujciak.de", role = "aut",
+           comment = c(ORCID = "0000-0002-7281-3989")),
+    person(c("Kelli", "F."), "Johnson", , "kelli.johnson@noaa.gov", role = "ctb",
+           comment = c(ORCID = "0000-0002-5149-451X")),
+    person("Eunseop", "Kim", , "markean@pm.me", role = "aut",
+           comment = c(ORCID = "0009-0000-2138-788X")),
+    person("Katrina", "Brock", , "katrinabrock266@gmail.com", role = "ctb",
+           comment = c(ORCID = "0009-0003-4678-9545")),
+    person("Andy", "Teucher", , "andy.teucher@gmail.com", role = "aut",
+           comment = c(ORCID = "0000-0002-7840-692X")),
+    person("Eric R.", "Scott", role = "aut",
+           comment = c(ORCID = "0000-0002-7430-7879"))
+  )
+Description: Check whether a package is ready for submission to the 'rOpenSci'
+    peer review system ('rOpenSci' authors (2026) <doi:10.5281/zenodo.2553043>
+    "'rOpenSci' Packages: Development, Maintenance, and Peer Review").
+    Incorporates the 'goodpractice' package and many additional checks,
+    including aspects related to maintenance of online public code
+    repositories.
+License: GPL-3
+URL: https://docs.ropensci.org/pkgcheck/,
+        https://github.com/ropensci-review-tools/pkgcheck
+BugReports: https://github.com/ropensci-review-tools/pkgcheck/issues
+Depends: R (>= 3.5.0)
+Imports: cli, covr, curl, fs, gert, gh, goodpractice, httr2, methods,
+        pkgstats, praise, rappdirs, rmarkdown, rprojroot, rvest, srr,
+        withr
+Suggests: callr, httptest2, jsonlite, knitr, memoise, pkgbuild,
+        roxygen2, testthat (>= 3.0.0), xfun
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Config/ropensci/maintainer: staff
+Encoding: UTF-8
+Language: en-GB
+NeedsCompilation: yes
+Config/roxygen2/version: 8.1.0
+Packaged: 2026-09-16 10:57:05 UTC; smexus
+Author: Mark Padgham [aut, cre] (ORCID:
+    <https://orcid.org/0000-0003-2172-5265>),
+  Maëlle Salmon [aut],
+  Jacob Wujciak-Jens [aut] (ORCID:
+    <https://orcid.org/0000-0002-7281-3989>),
+  Kelli F. Johnson [ctb] (ORCID: <https://orcid.org/0000-0002-5149-451X>),
+  Eunseop Kim [aut] (ORCID: <https://orcid.org/0009-0000-2138-788X>),
+  Katrina Brock [ctb] (ORCID: <https://orcid.org/0009-0003-4678-9545>),
+  Andy Teucher [aut] (ORCID: <https://orcid.org/0000-0002-7840-692X>),
+  Eric R. Scott [aut] (ORCID: <https://orcid.org/0000-0002-7430-7879>)
+Maintainer: Mark Padgham <mark.padgham@email.com>
+Repository: CRAN
+Date/Publication: 2026-09-27 16:30:09 UTC
