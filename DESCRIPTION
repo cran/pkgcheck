@@ -1,6 +1,6 @@
 Package: pkgcheck
 Title: Package Checks for 'rOpenSci'
-Version: 0.3.0
+Version: 0.3.1
 Authors@R: c(
     person("Mark", "Padgham", , "mark.padgham@email.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0003-2172-5265")),
@@ -41,7 +41,7 @@ Encoding: UTF-8
 Language: en-GB
 NeedsCompilation: yes
 Config/roxygen2/version: 8.1.0
-Packaged: 2026-09-16 10:57:05 UTC; smexus
+Packaged: 2026-09-28 11:11:29 UTC; smexus
 Author: Mark Padgham [aut, cre] (ORCID:
     <https://orcid.org/0000-0003-2172-5265>),
   Maëlle Salmon [aut],
@@ -54,4 +54,4 @@ Author: Mark Padgham [aut, cre] (ORCID:
   Eric R. Scott [aut] (ORCID: <https://orcid.org/0000-0002-7430-7879>)
 Maintainer: Mark Padgham <mark.padgham@email.com>
 Repository: CRAN
-Date/Publication: 2026-09-27 16:30:09 UTC
+Date/Publication: 2026-09-28 12:20:02 UTC
