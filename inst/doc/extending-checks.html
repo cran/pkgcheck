@@ -11,7 +11,7 @@
 
 <meta name="author" content="Mark Padgham" />
 
-<meta name="date" content="2026-09-28" />
+<meta name="date" content="2026-10-02" />
 
 <title>Adding or modifying checks</title>
 
@@ -1499,7 +1499,7 @@ border-radius: 0px;
 
 <h1 class="title toc-ignore">Adding or modifying checks</h1>
 <h4 class="author">Mark Padgham</h4>
-<h4 class="date">2026-09-28</h4>
+<h4 class="date">2026-10-02</h4>
 
 </div>
 
@@ -1834,14 +1834,7 @@ defined in this ordering, including any defined via
 <code>extra_env</code> parameters, appear <em>after</em> all of the
 standard checks, and prior to the <code>R CMD check</code> results which
 always appear last. This order may only be modified by editing the list
-in that function. The order of check results in the <code>print</code>
-method is also hard-coded, defined in the <a href="https://github.com/ropensci-review-tools/pkgcheck/blob/main/R/pkgcheck-methods.R">main
-<code>print.pkgcheck</code> method</a>. As explicitly stated in that
-function, any new checks should also be included in the
-<code>print</code> method just after <a href="https://github.com/ropensci-review-tools/pkgcheck/blob/2e025c276c84b45bc46f72ec5d8b029de83ac211/R/pkgcheck-methods.R#L65-L71">the
-first reference to <code>&quot;misc_checks&quot;</code></a>, via an additional
-line:</p>
-<pre class="r"><code>print_check_screen (x, &quot;&lt;name-of-new-check&gt;&quot;, pkg_env)</code></pre>
+in that function.</p>
 <p>The <code>print_check_screen()</code> function will then
 automatically activate the <code>print</code> method of any new checks.
 This line should be added even if a new check has no <code>print</code>

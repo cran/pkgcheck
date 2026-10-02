@@ -1,6 +1,28 @@
 # pkgcheck News
 
-## 0.2.0.00x (current dev version)
+## 0.3.2
+
+### Major changes
+
+- Rewrite check print methods to automatically pick up all failing checks with `print` methods
+
+### Minor changes
+
+- Update `has_orcid` check to exclude any 'aut' with ROR.
+- Fix final `has_token` check to avoid calling GH for badge info on CRAN machines
+
+---
+
+## 0.3.1
+
+### Minor changes
+
+- Tests updated to never make external GitHub API calls.
+- New `fake_pkgstats_test_data()` fn to avoid downloading pkgstats results in tests.
+
+## 0.3.0
+
+Initial CRAN release
 
 ### Major changes
 

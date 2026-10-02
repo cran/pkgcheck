@@ -154,9 +154,6 @@ message ("")
 cli::cli_alert_info ("Current status:")
 cli::cli_alert_danger ("This package is not ready to be submitted.")
 
-## ----new-check-print, eval = FALSE--------------------------------------------
-# print_check_screen (x, "<name-of-new-check>", pkg_env)
-
 ## ----eval = FALSE-------------------------------------------------------------
 # out$check_type <- "pass_watch"
 
